@@ -46,28 +46,30 @@ const ImageTagger = () => {
         return { x, y };
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const aspectRatio = img.width / img.height;
-                    if (Math.abs(aspectRatio - 2) > 0.1) {
-                        alert('Please upload an image with approximately 2:1 aspect ratio');
-                        return;
-                    }
-                    setImage(img);
-                    if (canvasRef.current) {
-                        canvasRef.current.width = img.width;
-                        canvasRef.current.height = img.height;
-                    }
-                };
-                img.src = e.target?.result as string;
+    const handleImageUpload = (evt: React.ChangeEvent<HTMLInputElement>) => {
+        const files = evt.target.files;
+        if (!files?.[0]) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (!event.target?.result) return;
+
+            const img = new Image();
+            img.onload = () => {
+                const aspectRatio = img.width / img.height;
+                if (Math.abs(aspectRatio - 2) > 0.1) {
+                    alert('Please upload an image with approximately 2:1 aspect ratio');
+                    return;
+                }
+                setImage(img);
+                if (canvasRef.current) {
+                    canvasRef.current.width = img.width;
+                    canvasRef.current.height = img.height;
+                }
             };
-            reader.readAsDataURL(file);
-        }
+            img.src = event.target.result as string;
+        };
+        reader.readAsDataURL(files[0]);
     };
 
     const startDrawing = (e: React.MouseEvent) => {
@@ -94,7 +96,7 @@ const ImageTagger = () => {
         });
     };
 
-    const stopDrawing = (e: React.MouseEvent) => {
+    const stopDrawing = () => {
         if (!isDrawing || !currentBox) return;
         setIsDrawing(false);
 
@@ -176,8 +178,7 @@ const ImageTagger = () => {
             ctx.fillStyle = spot.id === selectedHotspotId ? '#FFD700' : '#ADFD6F';
             const textMetrics = ctx.measureText(spot.label);
             const textWidth = textMetrics.width;
-
-            let textX = spot.startX + (spot.width / 2) - (textWidth / 2);
+            const textX = spot.startX + (spot.width / 2) - (textWidth / 2);
             let textY = spot.startY + spot.height + 40;
 
             if (textY > canvas.height) {
