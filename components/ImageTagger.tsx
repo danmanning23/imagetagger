@@ -128,6 +128,59 @@ const ImageTagger = () => {
         }
     };
 
+    const handleImportJSON = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const content = e.target?.result as string;
+                    const data = JSON.parse(content);
+
+                    // Validate the imported data structure
+                    if (!data.sceneName || !Array.isArray(data.hotspots)) {
+                        throw new Error('Invalid JSON format');
+                    }
+
+                    // Create a new image with the dimensions from JSON
+                    const img = new Image();
+                    img.onload = () => {
+                        setImage(img);
+                        if (canvasRef.current) {
+                            canvasRef.current.width = data.imageWidth;
+                            canvasRef.current.height = data.imageHeight;
+                        }
+                    };
+                    img.src = '/api/placeholder/' + data.imageWidth + '/' + data.imageHeight;
+
+                    // Set scene name
+                    setSceneName(data.sceneName);
+
+                    // Convert the imported hotspots to our format
+                    const convertedHotspots = data.hotspots.map((spot: any) => ({
+                        id: spot.id || Date.now(),
+                        label: spot.label,
+                        startX: Math.round(spot.position.x),
+                        startY: Math.round(data.imageHeight - spot.position.y - spot.position.height),
+                        width: Math.round(spot.position.width),
+                        height: Math.round(spot.position.height)
+                    }));
+
+                    setHotspots(convertedHotspots);
+                } catch (error) {
+                    alert('Error importing JSON: ' + (error as Error).message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
     const exportJSON = () => {
         if (!sceneName || !image) {
             alert('Please enter a scene name and upload an image');
@@ -220,6 +273,14 @@ const ImageTagger = () => {
                 >
                     <Upload className="w-4 h-4" />
                     <span>Upload Image (2:1)</span>
+                </Button>
+
+                <Button
+                    onClick={handleImportJSON}
+                    className="flex items-center space-x-2"
+                >
+                    <Upload className="w-4 h-4" />
+                    <span>Import JSON</span>
                 </Button>
 
                 <Button
