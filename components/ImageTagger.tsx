@@ -161,8 +161,19 @@ const ImageTagger = () => {
                     // Set scene name
                     setSceneName(data.sceneName);
 
+                    interface ImportedHotspot {
+                        id?: number;
+                        label: string;
+                        position: {
+                            x: number;
+                            y: number;
+                            width: number;
+                            height: number;
+                        }
+                    }
+
                     // Convert the imported hotspots to our format
-                    const convertedHotspots = data.hotspots.map((spot: any) => ({
+                    const convertedHotspots = data.hotspots.map((spot: ImportedHotspot) => ({
                         id: spot.id || Date.now(),
                         label: spot.label,
                         startX: Math.round(spot.position.x),
