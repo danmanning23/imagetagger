@@ -74,7 +74,7 @@ const ImageTagger = () => {
         }));
     };
 
-    const stopDrawing = (e) => {
+    const stopDrawing = () => {
         if (!isDrawing || !currentBox) return;
         setIsDrawing(false);
 
@@ -157,7 +157,7 @@ const ImageTagger = () => {
             const textMetrics = ctx.measureText(spot.label);
             const textWidth = textMetrics.width;
 
-            let textX = spot.startX + (spot.width / 2) - (textWidth / 2);
+            const textX = spot.startX + (spot.width / 2) - (textWidth / 2);
             let textY = spot.startY + spot.height + 40;
 
             if (textY > canvas.height) {
