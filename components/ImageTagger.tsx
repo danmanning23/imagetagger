@@ -1,25 +1,40 @@
 "use client"
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Download, Upload, Trash2 } from 'lucide-react';
 
+interface Hotspot {
+    id: number;
+    label: string;
+    startX: number;
+    startY: number;
+    width: number;
+    height: number;
+}
+
+interface Box {
+    startX: number;
+    startY: number;
+    width: number;
+    height: number;
+}
+
 const ImageTagger = () => {
-    // ... [previous state and refs remain the same] ...
-    const [image, setImage] = useState(null);
-    const [hotspots, setHotspots] = useState([]);
+    const [image, setImage] = useState<HTMLImageElement | null>(null);
+    const [hotspots, setHotspots] = useState<Hotspot[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
-    const [currentBox, setCurrentBox] = useState(null);
+    const [currentBox, setCurrentBox] = useState<Box | null>(null);
     const [sceneName, setSceneName] = useState('');
-    const [selectedHotspotId, setSelectedHotspotId] = useState(null);
+    const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
 
-    const canvasRef = useRef(null);
-    const imageRef = useRef(null);
-    const containerRef = useRef(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    // ... [all previous functions remain exactly the same until exportJSON] ...
-    const getScaledCoordinates = (clientX: number, clientY: number) => {
+    const getScaledCoordinates = (clientX: number, clientY: number): { x: number; y: number } => {
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
 
@@ -31,8 +46,8 @@ const ImageTagger = () => {
         return { x, y };
     };
 
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -49,13 +64,13 @@ const ImageTagger = () => {
                         canvasRef.current.height = img.height;
                     }
                 };
-                img.src = e.target.result;
+                img.src = e.target?.result as string;
             };
             reader.readAsDataURL(file);
         }
     };
 
-    const startDrawing = (e) => {
+    const startDrawing = (e: React.MouseEvent) => {
         const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
         setIsDrawing(true);
         setCurrentBox({
@@ -66,22 +81,25 @@ const ImageTagger = () => {
         });
     };
 
-    const draw = (e) => {
+    const draw = (e: React.MouseEvent) => {
         if (!isDrawing || !currentBox) return;
         const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
-        setCurrentBox(prev => ({
-            ...prev,
-            width: x - prev.startX,
-            height: y - prev.startY
-        }));
+        setCurrentBox(prev => {
+            if (!prev) return null;
+            return {
+                ...prev,
+                width: x - prev.startX,
+                height: y - prev.startY
+            };
+        });
     };
 
-    const stopDrawing = () => {
+    const stopDrawing = (e: React.MouseEvent) => {
         if (!isDrawing || !currentBox) return;
         setIsDrawing(false);
 
         if (Math.abs(currentBox.width) > 5 && Math.abs(currentBox.height) > 5) {
-            const normalizedBox = {
+            const normalizedBox: Hotspot = {
                 startX: currentBox.width < 0 ? currentBox.startX + currentBox.width : currentBox.startX,
                 startY: currentBox.height < 0 ? currentBox.startY + currentBox.height : currentBox.startY,
                 width: Math.abs(currentBox.width),
@@ -95,13 +113,13 @@ const ImageTagger = () => {
         setCurrentBox(null);
     };
 
-    const updateHotspotLabel = (id, newLabel) => {
+    const updateHotspotLabel = (id: number, newLabel: string) => {
         setHotspots(prev => prev.map(spot =>
             spot.id === id ? { ...spot, label: newLabel } : spot
         ));
     };
 
-    const deleteHotspot = (id) => {
+    const deleteHotspot = (id: number) => {
         setHotspots(prev => prev.filter(spot => spot.id !== id));
         if (selectedHotspotId === id) {
             setSelectedHotspotId(null);
@@ -123,7 +141,7 @@ const ImageTagger = () => {
                 label: spot.label,
                 position: {
                     x: Math.round(spot.startX),
-                    y: Math.round(image.height - (spot.startY + spot.height)), // Convert to bottom-left origin
+                    y: Math.round(image.height - (spot.startY + spot.height)),
                     width: Math.round(spot.width),
                     height: Math.round(spot.height)
                 }
@@ -144,12 +162,12 @@ const ImageTagger = () => {
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
         hotspots.forEach(spot => {
-            // Draw box with different style if selected
             ctx.strokeStyle = spot.id === selectedHotspotId ? '#FFD700' : '#ADFD6F';
             ctx.lineWidth = 16;
             ctx.strokeRect(spot.startX, spot.startY, spot.width, spot.height);
@@ -159,7 +177,7 @@ const ImageTagger = () => {
             const textMetrics = ctx.measureText(spot.label);
             const textWidth = textMetrics.width;
 
-            const textX = spot.startX + (spot.width / 2) - (textWidth / 2);
+            let textX = spot.startX + (spot.width / 2) - (textWidth / 2);
             let textY = spot.startY + spot.height + 40;
 
             if (textY > canvas.height) {
@@ -196,7 +214,7 @@ const ImageTagger = () => {
 
             <div className="flex items-center space-x-4">
                 <Button
-                    onClick={() => document.getElementById('image-upload').click()}
+                    onClick={() => document.getElementById('image-upload')?.click()}
                     className="flex items-center space-x-2"
                 >
                     <Upload className="w-4 h-4" />
@@ -205,7 +223,7 @@ const ImageTagger = () => {
 
                 <Button
                     onClick={exportJSON}
-                    disabled={!image || !sceneName} // Removed hotspots.length check
+                    disabled={!image || !sceneName}
                     className="flex items-center space-x-2"
                 >
                     <Download className="w-4 h-4" />
