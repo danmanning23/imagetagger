@@ -6,10 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Download, Upload, Trash2 } from 'lucide-react';
 
+interface BilingualText {
+    en: string;
+    es: string;
+}
+
 interface Hotspot {
     id: number;
-    label: string;
-    message: string;
+    label: BilingualText;
+    message: BilingualText;
     startX: number;
     startY: number;
     width: number;
@@ -18,8 +23,8 @@ interface Hotspot {
 
 interface ImportedHotspot {
     id?: number;
-    label: string;
-    message: string;
+    label: BilingualText;
+    message: BilingualText;
     position: {
         x: number;
         y: number;
@@ -40,7 +45,8 @@ const ImageTagger = () => {
     const [hotspots, setHotspots] = useState<Hotspot[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentBox, setCurrentBox] = useState<Box | null>(null);
-    const [sceneName, setSceneName] = useState('');
+    const [sceneName, setSceneName] = useState<BilingualText>({ en: '', es: '' });
+    const [sceneMessage, setSceneMessage] = useState<BilingualText>({ en: '', es: '' });
     const [sceneOrder, setSceneOrder] = useState('0');
     const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
     const [imageFile, setImageFile] = useState<string>('');
@@ -117,13 +123,14 @@ const ImageTagger = () => {
                     img.src = '/api/placeholder/' + data.imageWidth + '/' + data.imageHeight;
 
                     setSceneName(data.sceneName);
+                    setSceneMessage(data.sceneMessage || { en: '', es: '' });
                     setSceneOrder(data.order?.toString() || '0');
                     setImageFile(data.imageFile || '');
 
                     const convertedHotspots = data.hotspots.map((spot: ImportedHotspot) => ({
                         id: spot.id || Date.now(),
                         label: spot.label,
-                        message: spot.message || '',
+                        message: spot.message,
                         startX: Math.round(spot.position.x),
                         startY: Math.round(spot.position.y),
                         width: Math.round(spot.position.width),
@@ -174,8 +181,8 @@ const ImageTagger = () => {
                 startY: currentBox.height < 0 ? currentBox.startY + currentBox.height : currentBox.startY,
                 width: Math.abs(currentBox.width),
                 height: Math.abs(currentBox.height),
-                label: `Area ${hotspots.length + 1}`,
-                message: '',
+                label: { en: `Area ${hotspots.length + 1}`, es: `Área ${hotspots.length + 1}` },
+                message: { en: '', es: '' },
                 id: Date.now()
             };
             setHotspots(prev => [...prev, normalizedBox]);
@@ -184,15 +191,21 @@ const ImageTagger = () => {
         setCurrentBox(null);
     };
 
-    const updateHotspotLabel = (id: number, newLabel: string) => {
+    const updateHotspotLabel = (id: number, lang: 'en' | 'es', value: string) => {
         setHotspots(prev => prev.map(spot =>
-            spot.id === id ? { ...spot, label: newLabel } : spot
+            spot.id === id ? {
+                ...spot,
+                label: { ...spot.label, [lang]: value }
+            } : spot
         ));
     };
 
-    const updateHotspotMessage = (id: number, newMessage: string) => {
+    const updateHotspotMessage = (id: number, lang: 'en' | 'es', value: string) => {
         setHotspots(prev => prev.map(spot =>
-            spot.id === id ? { ...spot, message: newMessage } : spot
+            spot.id === id ? {
+                ...spot,
+                message: { ...spot.message, [lang]: value }
+            } : spot
         ));
     };
 
@@ -204,13 +217,14 @@ const ImageTagger = () => {
     };
 
     const exportJSON = () => {
-        if (!sceneName || !image) {
+        if (!sceneName.en || !image) {
             alert('Please enter a scene name and upload an image');
             return;
         }
 
         const sceneData = {
             sceneName,
+            sceneMessage,
             order: parseInt(sceneOrder),
             imageFile,
             imageWidth: image.width,
@@ -232,7 +246,7 @@ const ImageTagger = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${sceneName}.json`;
+        a.download = `${sceneName.en}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -254,7 +268,7 @@ const ImageTagger = () => {
 
             ctx.font = '34px Poppins';
             ctx.fillStyle = spot.id === selectedHotspotId ? '#FFD700' : '#ADFD6F';
-            const textMetrics = ctx.measureText(spot.label);
+            const textMetrics = ctx.measureText(spot.label.en);
             const textWidth = textMetrics.width;
             const textX = spot.startX + (spot.width / 2) - (textWidth / 2);
             let textY = spot.startY + spot.height + 40;
@@ -263,7 +277,7 @@ const ImageTagger = () => {
                 textY = spot.startY - 10;
             }
 
-            ctx.fillText(spot.label, textX, textY);
+            ctx.fillText(spot.label.en, textX, textY);
         });
 
         if (currentBox) {
@@ -282,14 +296,39 @@ const ImageTagger = () => {
         <div className="w-full max-w-6xl mx-auto p-4 space-y-4">
             <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="scene-name">Scene Name</Label>
-                    <Input
-                        id="scene-name"
-                        value={sceneName}
-                        onChange={(e) => setSceneName(e.target.value)}
-                        placeholder="Enter scene name"
-                        className="max-w-xs"
-                    />
+                    <Label>Scene Name</Label>
+                    <div className="space-y-2">
+                        <Input
+                            value={sceneName.en}
+                            onChange={(e) => setSceneName(prev => ({ ...prev, en: e.target.value }))}
+                            placeholder="Enter scene name (English)"
+                            className="max-w-xs"
+                        />
+                        <Input
+                            value={sceneName.es}
+                            onChange={(e) => setSceneName(prev => ({ ...prev, es: e.target.value }))}
+                            placeholder="Enter scene name (Spanish)"
+                            className="max-w-xs"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Scene Message</Label>
+                    <div className="space-y-2">
+                        <Input
+                            value={sceneMessage.en}
+                            onChange={(e) => setSceneMessage(prev => ({ ...prev, en: e.target.value }))}
+                            placeholder="Enter scene message (English)"
+                            className="max-w-xs"
+                        />
+                        <Input
+                            value={sceneMessage.es}
+                            onChange={(e) => setSceneMessage(prev => ({ ...prev, es: e.target.value }))}
+                            placeholder="Enter scene message (Spanish)"
+                            className="max-w-xs"
+                        />
+                    </div>
                 </div>
 
                 <div className="space-y-2">
@@ -323,7 +362,7 @@ const ImageTagger = () => {
 
                 <Button
                     onClick={exportJSON}
-                    disabled={!image || !sceneName}
+                    disabled={!image || !sceneName.en}
                     className="flex items-center space-x-2"
                 >
                     <Download className="w-4 h-4" />
@@ -371,13 +410,20 @@ const ImageTagger = () => {
                                     onClick={() => setSelectedHotspotId(spot.id)}
                                 >
                                     <div className="flex items-center space-x-4">
-                                        <Input
-                                            value={spot.label}
-                                            onChange={(e) => updateHotspotLabel(spot.id, e.target.value)}
-                                            className="flex-grow"
-                                            placeholder="Area Label"
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
+                                        <div className="flex-grow space-y-2">
+                                            <Input
+                                                value={spot.label.en}
+                                                onChange={(e) => updateHotspotLabel(spot.id, 'en', e.target.value)}
+                                                placeholder="Area Label (English)"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <Input
+                                                value={spot.label.es}
+                                                onChange={(e) => updateHotspotLabel(spot.id, 'es', e.target.value)}
+                                                placeholder="Area Label (Spanish)"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
                                         <Button
                                             variant="ghost"
                                             size="icon"
@@ -389,13 +435,20 @@ const ImageTagger = () => {
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
                                     </div>
-                                    <Input
-                                        value={spot.message}
-                                        onChange={(e) => updateHotspotMessage(spot.id, e.target.value)}
-                                        className="w-full"
-                                        placeholder="Message"
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
+                                    <div className="space-y-2">
+                                        <Input
+                                            value={spot.message.en}
+                                            onChange={(e) => updateHotspotMessage(spot.id, 'en', e.target.value)}
+                                            placeholder="Message (English)"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <Input
+                                            value={spot.message.es}
+                                            onChange={(e) => updateHotspotMessage(spot.id, 'es', e.target.value)}
+                                            placeholder="Message (Spanish)"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
                                 </div>
                             ))}
                         </div>
