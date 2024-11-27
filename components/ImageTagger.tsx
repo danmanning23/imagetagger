@@ -9,10 +9,23 @@ import { Download, Upload, Trash2 } from 'lucide-react';
 interface Hotspot {
     id: number;
     label: string;
+    message: string;
     startX: number;
     startY: number;
     width: number;
     height: number;
+}
+
+interface ImportedHotspot {
+    id?: number;
+    label: string;
+    message: string;
+    position: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }
 }
 
 interface Box {
@@ -28,7 +41,9 @@ const ImageTagger = () => {
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentBox, setCurrentBox] = useState<Box | null>(null);
     const [sceneName, setSceneName] = useState('');
+    const [sceneOrder, setSceneOrder] = useState('0');
     const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
+    const [imageFile, setImageFile] = useState<string>('');
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
@@ -50,6 +65,7 @@ const ImageTagger = () => {
         const files = evt.target.files;
         if (!files?.[0]) return;
 
+        setImageFile(files[0].name);
         const reader = new FileReader();
         reader.onload = (event) => {
             if (!event.target?.result) return;
@@ -70,6 +86,58 @@ const ImageTagger = () => {
             img.src = event.target.result as string;
         };
         reader.readAsDataURL(files[0]);
+    };
+
+    const handleImportJSON = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const content = e.target?.result as string;
+                    const data = JSON.parse(content);
+
+                    if (!data.sceneName || !Array.isArray(data.hotspots)) {
+                        throw new Error('Invalid JSON format');
+                    }
+
+                    const img = new Image();
+                    img.onload = () => {
+                        setImage(img);
+                        if (canvasRef.current) {
+                            canvasRef.current.width = data.imageWidth;
+                            canvasRef.current.height = data.imageHeight;
+                        }
+                    };
+                    img.src = '/api/placeholder/' + data.imageWidth + '/' + data.imageHeight;
+
+                    setSceneName(data.sceneName);
+                    setSceneOrder(data.order?.toString() || '0');
+                    setImageFile(data.imageFile || '');
+
+                    const convertedHotspots = data.hotspots.map((spot: ImportedHotspot) => ({
+                        id: spot.id || Date.now(),
+                        label: spot.label,
+                        message: spot.message || '',
+                        startX: Math.round(spot.position.x),
+                        startY: Math.round(spot.position.y),
+                        width: Math.round(spot.position.width),
+                        height: Math.round(spot.position.height)
+                    }));
+
+                    setHotspots(convertedHotspots);
+                } catch (error) {
+                    alert('Error importing JSON: ' + (error as Error).message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     };
 
     const startDrawing = (e: React.MouseEvent) => {
@@ -106,7 +174,8 @@ const ImageTagger = () => {
                 startY: currentBox.height < 0 ? currentBox.startY + currentBox.height : currentBox.startY,
                 width: Math.abs(currentBox.width),
                 height: Math.abs(currentBox.height),
-                label: `Hotspot ${hotspots.length + 1}`,
+                label: `Area ${hotspots.length + 1}`,
+                message: '',
                 id: Date.now()
             };
             setHotspots(prev => [...prev, normalizedBox]);
@@ -121,75 +190,17 @@ const ImageTagger = () => {
         ));
     };
 
+    const updateHotspotMessage = (id: number, newMessage: string) => {
+        setHotspots(prev => prev.map(spot =>
+            spot.id === id ? { ...spot, message: newMessage } : spot
+        ));
+    };
+
     const deleteHotspot = (id: number) => {
         setHotspots(prev => prev.filter(spot => spot.id !== id));
         if (selectedHotspotId === id) {
             setSelectedHotspotId(null);
         }
-    };
-
-    const handleImportJSON = () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const content = e.target?.result as string;
-                    const data = JSON.parse(content);
-
-                    // Validate the imported data structure
-                    if (!data.sceneName || !Array.isArray(data.hotspots)) {
-                        throw new Error('Invalid JSON format');
-                    }
-
-                    // Create a new image with the dimensions from JSON
-                    const img = new Image();
-                    img.onload = () => {
-                        setImage(img);
-                        if (canvasRef.current) {
-                            canvasRef.current.width = data.imageWidth;
-                            canvasRef.current.height = data.imageHeight;
-                        }
-                    };
-                    img.src = '/api/placeholder/' + data.imageWidth + '/' + data.imageHeight;
-
-                    // Set scene name
-                    setSceneName(data.sceneName);
-
-                    interface ImportedHotspot {
-                        id?: number;
-                        label: string;
-                        position: {
-                            x: number;
-                            y: number;
-                            width: number;
-                            height: number;
-                        }
-                    }
-
-                    // Convert the imported hotspots to our format
-                    const convertedHotspots = data.hotspots.map((spot: ImportedHotspot) => ({
-                        id: spot.id || Date.now(),
-                        label: spot.label,
-                        startX: Math.round(spot.position.x),
-                        startY: Math.round(data.imageHeight - spot.position.y - spot.position.height),
-                        width: Math.round(spot.position.width),
-                        height: Math.round(spot.position.height)
-                    }));
-
-                    setHotspots(convertedHotspots);
-                } catch (error) {
-                    alert('Error importing JSON: ' + (error as Error).message);
-                }
-            };
-            reader.readAsText(file);
-        };
-        input.click();
     };
 
     const exportJSON = () => {
@@ -200,14 +211,17 @@ const ImageTagger = () => {
 
         const sceneData = {
             sceneName,
+            order: parseInt(sceneOrder),
+            imageFile,
             imageWidth: image.width,
             imageHeight: image.height,
             hotspots: hotspots.map(spot => ({
                 id: spot.id,
                 label: spot.label,
+                message: spot.message,
                 position: {
                     x: Math.round(spot.startX),
-                    y: Math.round(image.height - (spot.startY + spot.height)),
+                    y: Math.round(spot.startY),
                     width: Math.round(spot.width),
                     height: Math.round(spot.height)
                 }
@@ -266,15 +280,28 @@ const ImageTagger = () => {
 
     return (
         <div className="w-full max-w-6xl mx-auto p-4 space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="scene-name">Scene Name</Label>
-                <Input
-                    id="scene-name"
-                    value={sceneName}
-                    onChange={(e) => setSceneName(e.target.value)}
-                    placeholder="Enter scene name"
-                    className="max-w-xs"
-                />
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="scene-name">Scene Name</Label>
+                    <Input
+                        id="scene-name"
+                        value={sceneName}
+                        onChange={(e) => setSceneName(e.target.value)}
+                        placeholder="Enter scene name"
+                        className="max-w-xs"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="scene-order">Order</Label>
+                    <Input
+                        id="scene-order"
+                        type="number"
+                        value={sceneOrder}
+                        onChange={(e) => setSceneOrder(e.target.value)}
+                        className="max-w-xs"
+                    />
+                </div>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -334,31 +361,41 @@ const ImageTagger = () => {
                     </div>
 
                     <div className="mt-4 space-y-2">
-                        <h3 className="text-lg font-medium">Hotspots</h3>
+                        <h3 className="text-lg font-medium">Areas</h3>
                         <div className="space-y-2">
                             {hotspots.map(spot => (
                                 <div
                                     key={spot.id}
-                                    className={`p-3 border rounded-lg flex items-center space-x-4 ${selectedHotspotId === spot.id ? 'border-yellow-400 bg-yellow-50' : ''
+                                    className={`p-3 border rounded-lg space-y-2 ${selectedHotspotId === spot.id ? 'border-yellow-400 bg-yellow-50' : ''
                                         }`}
                                     onClick={() => setSelectedHotspotId(spot.id)}
                                 >
+                                    <div className="flex items-center space-x-4">
+                                        <Input
+                                            value={spot.label}
+                                            onChange={(e) => updateHotspotLabel(spot.id, e.target.value)}
+                                            className="flex-grow"
+                                            placeholder="Area Label"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteHotspot(spot.id);
+                                            }}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                     <Input
-                                        value={spot.label}
-                                        onChange={(e) => updateHotspotLabel(spot.id, e.target.value)}
-                                        className="flex-grow"
+                                        value={spot.message}
+                                        onChange={(e) => updateHotspotMessage(spot.id, e.target.value)}
+                                        className="w-full"
+                                        placeholder="Message"
                                         onClick={(e) => e.stopPropagation()}
                                     />
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteHotspot(spot.id);
-                                        }}
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
                                 </div>
                             ))}
                         </div>
